@@ -12,7 +12,7 @@ from easydict import EasyDict as edict
 from urllib.parse import urlparse
 
 
-class Server():
+class Server:
     def __init__(self, config):
         self.config = config
         self.serv = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -34,7 +34,7 @@ class Server():
                     break
             except AttributeError:
                 pass
-        # received message will be actually a dicktionary
+        # received message will be actually a dictionary
         client_dick = deserialized
         return client_dick
 
@@ -57,7 +57,6 @@ class Server():
         conn.send(serialized)
 
     def run(self, args):
-
         while True:
             conn, addr = self.serv.accept()
             data = self.read(conn)
@@ -75,10 +74,12 @@ def main(args):
 
 
 if __name__ == "__main__":
+    stockfish_path_windows = './../stockfish-11-win/stockfish-11-win/Windows/stockfish_20011801_x64.exe'
+    stockfish_path_mac = './../stockfish-11-mac/MAC/stockfish-11-64'
     parser = argparse.ArgumentParser()
     parser.add_argument('--config-path', type=str, default='./../uciServer.json')
     parser.add_argument('--stockfish-path', type=str,
-                        default='./../stockfish-11-win/stockfish-11-win/Windows/stockfish_20011801_x64.exe')
+                        default=stockfish_path_mac)
 
     args, _ = parser.parse_known_args()
 
