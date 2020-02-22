@@ -3,6 +3,7 @@ from urllib.parse import urlparse
 
 import chess
 import chess.engine
+import chess.pgn
 
 import socket
 
@@ -21,12 +22,16 @@ class Client:
         self.n_variations = config.n_variations
         self.host = config.host
         self.port = config.port
+        self.output_file = config.output_pgn_path
+        pgn_file = open(config.input_pgn_path)
+        self.game = chess.pgn.read_game(pgn_file)
+        pgn_file.close()
 
         # dunno what these flags mean - I've taken them from some random tutorial.
         self.client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
     def send(self):
-        board = chess.Board("r4rk1/pp5p/2p2ppB/3pP3/2P2Q2/P1N2P2/1q4PP/n4R1K w - - 0 21")
+        board = self.game.board()
         limit = chess.engine.Limit(depth=self.depth)
 
         # funny javascript dictionary ;D
