@@ -41,7 +41,11 @@ class Server:
     def infere(self, args, data):
         # TODO use self.config here to setup the engine
         engine = chess.engine.SimpleEngine.popen_uci(args.stockfish_path)
-        res = engine.play(data.board, data.limit)
+        res = []
+        for move in data.board.legal_moves:
+            info = engine.analyse(data.board, chess.engine.Limit(time=1), root_moves=[move])
+            res += [(move, info['score'].relative.cp)]
+        #res = engine.play(data.board, data.limit)
         engine.quit()
         return res
 
@@ -79,7 +83,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--config-path', type=str, default='./../uciServer.json')
     parser.add_argument('--stockfish-path', type=str,
-                        default=stockfish_path_mac)
+                        default=stockfish_path_windows)
 
     args, _ = parser.parse_known_args()
 
