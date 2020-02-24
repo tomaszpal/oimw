@@ -1,2 +1,5 @@
 python-chess
-easydict:
+easydict
+requests
+websockets
+asyncio
