@@ -1,0 +1,1 @@
+java -jar chess-backend.jar --port=80

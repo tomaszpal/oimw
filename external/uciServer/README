@@ -1,0 +1,18 @@
+UCI Server requirements:
+  Java 8 JRE/JDK Installed
+
+Server configuration:
+  Please adjust JAVA_HOME variable in all *.bat files
+  Please download Stockfish 10 x64 from https://stockfishchess.org, and put stockfish_10_x64.exe executable in "engines" directory
+
+Start the server:
+run-server.bat (on systems with Java 8 only)
+run-server-java-8.bat (on systems with Java 8 installed, but not set as default Java version)
+
+Help (in Polish):
+Please refer to "Instrukcja użytkowania aplikacji serwerowej.pdf"
+
+Default user credentials (for HTTP REST API consumers):
+  username: test
+  password: 111111
+(the above password is stored in users.json after encoding with SHA256)
