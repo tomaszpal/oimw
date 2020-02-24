@@ -6,6 +6,7 @@ import chess.engine
 import chess.pgn
 
 import pickle
+import re
 import sys
 import argparse
 import requests
@@ -65,17 +66,31 @@ class Client:
                 await websocket.send('setoption name multipv value {}'.format(self.n_variations))
                 for name, value in self.engine['options'].items():
                     await websocket.send('setoption name {} value {}'.format(name, value))
-                    board = chess.Board()
-                    for move in self.game.mainline_moves():         
-                        board.push(move)
-                        await websocket.send('position fen ' + board.fen())
-                        await websocket.send('go depth {}'.format(self.depth))
-                        recv = ''
-                        for x in range(self.depth * self.n_variations + 1):
-                            recv += await websocket.recv() + '\n'
-            return recv
-        moves = asyncio.get_event_loop().run_until_complete(asyncio.gather(get_moves()))
-        return moves
+                board = chess.Board()
+                board_move_list = []
+                for move in self.game.mainline_moves():
+                    board_move_list.append((board.fen(), move.uci(), board.fullmove_number))
+                    board.push(move)
+                board_move_list.append((board.fen(), '', board.fullmove_number)) #blank move = no move
+                
+                move_list = []
+                for board_fen, game_move, move_nb in board_move_list:
+                    await websocket.send('position fen ' + board_fen)
+                    await websocket.send('go depth {}'.format(self.depth))
+
+                    for x in range(self.depth * self.n_variations + 1):
+                        recv = await websocket.recv()
+                        #whitespace here is important
+                        if ' depth {}'.format(self.depth) in recv and 'score cp' in recv: #mate moves have `score mate` instead of `score cp`, ommiting cuz they obvious
+                            m = re.search(r'pv ([a-h][1-8][a-h][1-8])', recv)
+                            move = m.group(1)
+                            m = re.search(r' score cp (-?\d+) ', recv)
+                            score = m.group(1)
+                            move_list.append((move_nb, move, score, game_move == move))
+                    
+            return move_list
+        move_list = asyncio.get_event_loop().run_until_complete(asyncio.gather(get_moves()))
+        return move_list[0]
 
     def __del__(self):
         #stop the engine
