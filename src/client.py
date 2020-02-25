@@ -16,13 +16,14 @@ from easydict import EasyDict as edict
 
 from filtermachine import FilterMachine
 
+CON_HEADERS = ["Site", "Date", "White", "Black"]
+
 LOGIN_PATH = '/user/login'
 LOGOUT_PATH = '/user/logout'
 EN_AVAIL_PATH = '/engine/available'
 EN_START_PATH = '/engine/start'
 EN_STOP_PATH = '/engine/stop'
 WS_EN_PATH = '/ws_engine'
-
 
 class Client:
     def __init__(self, config):
@@ -114,8 +115,15 @@ def main(args):
     moves = client.get_moves()
     game = client.get_game()
     fm = FilterMachine(game, moves, args.centipawns, args.n_variations)
-    print(moves)
     new_moves = fm.process()
+    with open(args.output_pgn_path, 'wt') as f:
+        if args.header == 'all':
+            for header, value in game.headers.items():
+                f.writelines(f'[{header} {value}]\n')
+        elif args.header == 'concise':
+            for header in CON_HEADERS:
+                if header in game.headers:
+                    f.writelines(f'[{header} {game.headers[header]}]\n')
     print(new_moves)
 
 
