@@ -16,7 +16,7 @@ from easydict import EasyDict as edict
 
 from filtermachine import FilterMachine
 
-CON_HEADERS = ["Site", "Date", "White", "Black"]
+CON_HEADERS = ["White", "Black", "Site", "Date"]
 
 LOGIN_PATH = '/user/login'
 LOGOUT_PATH = '/user/logout'
@@ -43,19 +43,29 @@ class Client:
         # account settings
         self.login = config.login
         self.password = config.password
+        self.connected = False
 
         # load pgn file
         with open(config.input_pgn_path) as pgn_file:
             self.game = chess.pgn.read_game(pgn_file)
 
+
         # login & get token
         response = requests.post(urljoin(self.url, LOGIN_PATH), json={'login': self.login, 'password': self.password})
+        if not response:
+            raise Exception('Error during login: {}'.format(response))
+        
+        self.connected = True      
         json = response.json()
         self.req_header = {'Authorization': 'Bearer {}'.format(json['token'])}
+            
 
         # start the engine
         response = requests.post(urljoin(self.url, EN_START_PATH), json={'engine': self.engine['name']},
                                  headers=self.req_header)
+        if not response:
+            raise Exception('Error during engine start: {}'.format(response))
+
         json = response.json()
 
     def get_game(self):
@@ -121,40 +131,49 @@ class Client:
 
     def __del__(self):
         # stop the engine
-        response = requests.post(urljoin(self.url, EN_STOP_PATH), headers=self.req_header)
-
-        # logout
-        response = requests.get(urljoin(self.url, LOGOUT_PATH), headers=self.req_header)
+        if self.connected:
+            response = requests.post(urljoin(self.url, EN_STOP_PATH), headers=self.req_header)
+            # logout
+            response = requests.get(urljoin(self.url, LOGOUT_PATH), headers=self.req_header)
 
 
 def main(args):
-    client = Client(args)
-    moves = client.get_moves()
-    print(moves)
-    game = client.get_game()
-    fm = FilterMachine(game, moves, args.centipawns, args.n_variations)
-    new_moves = fm.process()
-    print(len(new_moves))
-    with open(args.output_pgn_path, 'wt') as f:
-        if args.header == 'all':
-            for header, value in game.headers.items():
-                f.writelines(f'[{header} {value}]\n')
-        elif args.header == 'concise':
-            for header in CON_HEADERS:
-                if header in game.headers:
-                    f.writelines(f'[{header} {game.headers[header]}]\n')
-        for move in new_moves:
-            board = chess.Board(fen=move[1])
-            f.writelines(f'[FEN "{move[1]}"]\n')
-            # FIXME PGN FORMAT INSTEAD OF UCI
-            other_str = ''
-            for other_move in move[4]:
-                other_str += f' ({board.san(chess.Move.from_uci(other_move[0]))} ' + '{' + f'{other_move[1]}' + '}'
-                if other_move[0] == move[2]:
-                    other_str += '{G}'
-                other_str += ')'
-            other_str += ' *\n'
-            f.writelines(f'{move[0]}. {board.san(chess.Move.from_uci(move[3][0]))}' + '{' + f'{move[3][1]}' + '}' + other_str)
+    try:
+        client = Client(args)
+        moves = client.get_moves()
+        game = client.get_game()
+        fm = FilterMachine(game, moves, args.centipawns, args.n_variations)
+        new_moves = fm.process()
+
+        with open(args.output_pgn_path, 'wt') as f:
+            if args.header == 'all':
+                for header, value in game.headers.items():
+                    f.writelines(f'[{header} {value}]\n')
+            elif args.header == 'concise':
+                for header in CON_HEADERS:
+                    if header in game.headers:
+                        f.writelines(f'[{header} {game.headers[header]}]\n')
+            for move in new_moves:
+                board = chess.Board(fen=move[1])
+                f.writelines(f'[FEN "{move[1]}"]\n')
+                other_str = ''
+                for other_move in move[4]:
+                    other_str += f' ({move[0]}. {board.san(chess.Move.from_uci(other_move[0]))} ' + '{' + f'{other_move[1]:+d}' + '}'
+                    if other_move[0] == move[2]:
+                        other_str += '{G}'
+                    other_str += ')'
+                other_str += ' *\n'
+                best_str = f'{move[0]}. {board.san(chess.Move.from_uci(move[3][0]))}' + '{' + f'{move[3][1]:+d}' + '}'
+                if move[3][0] == move[2]:
+                    best_str += '{G}'
+                f.writelines(best_str + other_str)
+    except FileNotFoundError as error:
+        print('Error: {}'.format(error))
+    except Exception as error:
+        print('Error: {}'.format(error))
+    except:
+        print("Unexpected error:")
+        raise
 
 
 if __name__ == "__main__":
@@ -169,9 +188,12 @@ if __name__ == "__main__":
     parser.add_argument('input_pgn_path', type=str)
     parser.add_argument('output_pgn_path', type=str)
     args = parser.parse_args()
-
-    with open(args.e) as f:
-        config = json.load(f)
+    try:
+        with open(args.e) as f:
+            config = json.load(f)
+    except FileNotFoundError:
+        print('Config file not found: ' + args.e)
+        exit(1)
     url = urlparse(config['url'])
     args.url = url.geturl()
     ws_url = url._replace(scheme='ws')
