@@ -134,6 +134,7 @@ def main(args):
     game = client.get_game()
     fm = FilterMachine(game, moves, args.centipawns, args.n_variations)
     new_moves = fm.process()
+    print(len(new_moves))
     with open(args.output_pgn_path, 'wt') as f:
         if args.header == 'all':
             for header, value in game.headers.items():
@@ -143,17 +144,17 @@ def main(args):
                 if header in game.headers:
                     f.writelines(f'[{header} {game.headers[header]}]\n')
         for move in new_moves:
-            game = chess.pgn.Game.from_board(chess.Board(fen=move[1]))
+            board = chess.Board(fen=move[1])
             f.writelines(f'[FEN "{move[1]}"]\n')
             # FIXME PGN FORMAT INSTEAD OF UCI
             other_str = ''
             for other_move in move[4]:
-                other_str += f' ({other_move[0]} ' + '{' + f'{other_move[1]}' + '}'
+                other_str += f' ({board.san(chess.Move.from_uci(other_move[0]))} ' + '{' + f'{other_move[1]}' + '}'
                 if other_move[0] == move[2]:
                     other_str += '{G}'
                 other_str += ')'
             other_str += ' *\n'
-            f.writelines(f'{move[0]}. {move[3][0]}' + '{' + f'{move[3][1]}' + '}' + other_str)
+            f.writelines(f'{move[0]}. {board.san(chess.Move.from_uci(move[3][0]))}' + '{' + f'{move[3][1]}' + '}' + other_str)
 
 
 if __name__ == "__main__":
@@ -162,7 +163,7 @@ if __name__ == "__main__":
     parser.add_argument('--header', type=str, choices=['all', 'concise', 'minimal'], default='minimal')
     parser.add_argument('-cp', type=int, default=50, dest='centipawns')
     parser.add_argument('-d', type=int, default=4, dest='depth')
-    parser.add_argument('-n', type=int, default=2, dest='n_variations')
+    parser.add_argument('-n', type=int, default=4, dest='n_variations')
     parser.add_argument('-e', type=str, default='./../uciServer.json')
     parser.add_argument('-v', type=bool, default=False, dest='verbose')
     parser.add_argument('input_pgn_path', type=str)

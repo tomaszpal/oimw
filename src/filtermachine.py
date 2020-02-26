@@ -67,7 +67,25 @@ class FilterMachine:
             return False
         return True
 
-    def filter_3(self, sf_move):
+    def is_only_possible(self, sf_move):
+        if len(sf_move[4]) == 0: return True
+        return False
+
+    def is_variant_end(self, sf_move, board):
+        board.push(chess.Move.from_uci(sf_move))
+        return board.is_variant_end()
+
+    def is_variant_loss(self, sf_move, board):
+        board.push(chess.Move.from_uci(sf_move))
+        return board.is_variant_loss()
+
+    def is_insufficient_material(self, sf_move, board):
+        board.push(chess.Move.from_uci(sf_move))
+        return board.is_insufficient_material()
+
+    def is_lomonosov_endgame(self, sf_move, board):
+        board.push(chess.Move.from_uci(sf_move))
+        if len(board.piece_map()) < 8: return True
         return False
 
     def apply_all_filters(self, move_entry):
@@ -75,7 +93,11 @@ class FilterMachine:
         if self.min_centipawn_filter(move_entry[3], move_entry[4][0]): return True
         if self.is_material_gain(move_entry[3][0], chess.Board(fen=move_entry[1])): return True
         if self.is_fork(move_entry, chess.Board(fen=move_entry[1])): return True
-        if self.filter_3(move_entry): return True
+        if self.is_only_possible(move_entry): return True
+        if self.is_variant_end(move_entry[3][0], chess.Board(fen=move_entry[1])): return True
+        if self.is_variant_loss(move_entry[3][0], chess.Board(fen=move_entry[1])): return True
+        if self.is_insufficient_material(move_entry[3][0], chess.Board(fen=move_entry[1])): return True
+        if self.is_lomonosov_endgame(move_entry[3][0], chess.Board(fen=move_entry[1])): return True
         return False
 
     def process(self):
