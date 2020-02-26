@@ -34,7 +34,6 @@ class Client:
         self.n_variations = config.n_variations
         self.output_file = config.output_pgn_path
         self.engine = config.engine
-        self.verbose = config.verbose
 
         # connection settings
         self.url = config.url
@@ -181,10 +180,9 @@ if __name__ == "__main__":
     # w wymaganiach jest -h, ale -h jest zarezerwowane dla --help, wiec poki co robie --header
     parser.add_argument('--header', type=str, choices=['all', 'concise', 'minimal'], default='minimal')
     parser.add_argument('-cp', type=int, default=50, dest='centipawns')
-    parser.add_argument('-d', type=int, default=4, dest='depth')
-    parser.add_argument('-n', type=int, default=4, dest='n_variations')
-    parser.add_argument('-e', type=str, default='./../uciServer.json')
-    parser.add_argument('-v', type=bool, default=False, dest='verbose')
+    parser.add_argument('-d', type=int, default=30, dest='depth')
+    parser.add_argument('-n', type=int, default=2, dest='n_variations')
+    parser.add_argument('-e', type=str, default='uciServer.json')
     parser.add_argument('input_pgn_path', type=str)
     parser.add_argument('output_pgn_path', type=str)
     args = parser.parse_args()
