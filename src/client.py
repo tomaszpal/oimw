@@ -16,13 +16,14 @@ from easydict import EasyDict as edict
 
 from filtermachine import FilterMachine
 
+CON_HEADERS = ["Site", "Date", "White", "Black"]
+
 LOGIN_PATH = '/user/login'
 LOGOUT_PATH = '/user/logout'
 EN_AVAIL_PATH = '/engine/available'
 EN_START_PATH = '/engine/start'
 EN_STOP_PATH = '/engine/stop'
 WS_EN_PATH = '/ws_engine'
-
 
 class Client:
     def __init__(self, config):
@@ -83,22 +84,39 @@ class Client:
                 for white, (board_fen, game_move, move_nb) in enumerate(board_move_list):
                     await websocket.send('position fen ' + board_fen)
                     await websocket.send('go depth {}'.format(self.depth))
-                    for x in range(self.depth * self.n_variations + 1):
+                    result = []
+                    while True:
                         recv = await websocket.recv()
-                        # whitespace here is important
-                        if ' depth {}'.format(
-                                self.depth) in recv and 'score cp' in recv:  # mate moves have `score mate` instead of `score cp`, ommiting cuz they obvious
-                            m = re.search(r'pv ([a-h][1-8][a-h][1-8])', recv)
-                            move = m.group(1)
-                            m = re.search(r' score cp (-?\d+) ', recv)
-                            score = m.group(1)
-                            next_moves = recv.split('pv ')[-1].split(' ')[1:]
-                            move_list.append((move_nb, move, score, game_move == move, next_moves, white % 2 == 0))
                         if 'bestmove' in recv: break
+                        result.append(recv)
 
+                    relevant_lines = result[-self.n_variations:]
+                    force_mate = False
+                    temp = []
+                    for rel_line in relevant_lines:
+                        if 'score mate' in rel_line:
+                            force_mate = True
+                            break
+                        m = re.search(r'pv ([a-h][1-8][a-h][1-8])', rel_line)
+                        move = m.group(1)
+                        m = re.search(r' score cp (-?\d+) ', rel_line)
+                        score = int(m.group(1))
+                        next_moves = rel_line.split('pv ')[-1].split(' ')[1:]
+                        temp.append((move, score, next_moves))
+                    if force_mate: continue # skip position if mate possible
+
+                    if white % 2 == 0: # white (descending)
+                        temp = sorted(temp, key=lambda x: -x[1])
+                    else: # black (ascending)
+                        temp = sorted(temp, key=lambda x: x[1])
+                    best_move = temp[0] # best move, his score, and continuations
+                    rest = [(t[0], t[1]) for t in temp[1:]] # rest of the moves doesn't need this
+                    move_list.append((move_nb, board_fen, game_move, best_move, rest))
             return move_list
 
         move_list = asyncio.get_event_loop().run_until_complete(asyncio.gather(get_moves()))
+        # move list is a list of entries (move number, fen position, game_move, (best_move, score, [possible continuation]), [(other_move, score)])
+        # [(other_move, score)] is sorted (accordingly for black or white)
         return move_list[0]
 
     def __del__(self):
@@ -112,11 +130,30 @@ class Client:
 def main(args):
     client = Client(args)
     moves = client.get_moves()
+    print(moves)
     game = client.get_game()
     fm = FilterMachine(game, moves, args.centipawns, args.n_variations)
-    print(moves)
     new_moves = fm.process()
-    print(new_moves)
+    with open(args.output_pgn_path, 'wt') as f:
+        if args.header == 'all':
+            for header, value in game.headers.items():
+                f.writelines(f'[{header} {value}]\n')
+        elif args.header == 'concise':
+            for header in CON_HEADERS:
+                if header in game.headers:
+                    f.writelines(f'[{header} {game.headers[header]}]\n')
+        for move in new_moves:
+            game = chess.pgn.Game.from_board(chess.Board(fen=move[1]))
+            f.writelines(f'[FEN "{move[1]}"]\n')
+            # FIXME PGN FORMAT INSTEAD OF UCI
+            other_str = ''
+            for other_move in move[4]:
+                other_str += f' ({other_move[0]} ' + '{' + f'{other_move[1]}' + '}'
+                if other_move[0] == move[2]:
+                    other_str += '{G}'
+                other_str += ')'
+            other_str += ' *\n'
+            f.writelines(f'{move[0]}. {move[3][0]}' + '{' + f'{move[3][1]}' + '}' + other_str)
 
 
 if __name__ == "__main__":

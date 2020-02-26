@@ -4,7 +4,6 @@ import chess
 class FilterMachine:
     def __init__(self, game, moves, cp, n_variations):
         self.game = game
-        self.board = game.board()
         self.values = {
             1: 1,  # pawn
             2: 3,  # knight
@@ -17,9 +16,12 @@ class FilterMachine:
         self.sf_moves = moves
         self.n_variations = n_variations
 
+    def min_centipawn_filter(self, best_move, second_best):
+        return abs(best_move[1]-second_best[1]) < self.cp
+
     def is_material_gain(self, sf_move, board):
         # remove moves that are captures by a minor piece, leading to material advantage
-        nr, move, score, already_played, next_moves, white = sf_move
+        move = sf_move
         mv = chess.Move.from_uci(move)
         ts = mv.to_square
         fs = mv.from_square
@@ -39,7 +41,8 @@ class FilterMachine:
     def is_fork(self, sf_move, board):
         # check if move is a simple fork https://en.wikipedia.org/wiki/Fork_(chess)
         new_moves = []
-        nr, move, score, already_played, next_moves, white = sf_move
+        move = sf_move[3][0]
+        next_moves = sf_move[3][2]
         # we cannot check if there is fork if not enought data
         if len(next_moves) < 2:
             return False
@@ -57,7 +60,7 @@ class FilterMachine:
         for followup in board_after_move.legal_moves:
             # if this is the same piece
             if mv.to_square == followup.from_square:
-                mg = self.is_material_gain((0, followup.uci(), 0, False, [], True), board_after_move)
+                mg = self.is_material_gain(followup.uci(), board_after_move)
                 if mg:
                     number_of_material_gains += 1
         if number_of_material_gains < 2:
@@ -67,11 +70,12 @@ class FilterMachine:
     def filter_3(self, sf_move):
         return False
 
-    def apply_all_filters(self, move):
+    def apply_all_filters(self, move_entry):
         # if false, then false
-        if self.is_material_gain(move, self.board): return True
-        if self.is_fork(move, self.board): return True
-        if self.filter_3(move): return True
+        if self.min_centipawn_filter(move_entry[3], move_entry[4][0]): return True
+        if self.is_material_gain(move_entry[3][0], chess.Board(fen=move_entry[1])): return True
+        if self.is_fork(move_entry, chess.Board(fen=move_entry[1])): return True
+        if self.filter_3(move_entry): return True
         return False
 
     def process(self):
@@ -79,11 +83,9 @@ class FilterMachine:
         new_moves = []
         current_turn = True  # True is White
         mainline_iter = iter(self.game.mainline_moves())
-        for move in self.sf_moves:
-            if move[5] != current_turn:
-                self.board.push(next(mainline_iter))
-                current_turn = move[5]
+        # move entry = (move number, fen position, game_move, (best_move, score, [possible continuation]), [(other_move, score)])
+        for move_entry in self.sf_moves:
             # if none of filters were True
-            if not self.apply_all_filters(move):
-                new_moves.append(move)
+            if not self.apply_all_filters(move_entry):
+                new_moves.append(move_entry)
         return new_moves
